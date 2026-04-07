@@ -7,7 +7,7 @@ from src.vectordb import VectorDB
 def answer_query(query, db, top_k=8, model="llama3.2"):
     chunks, scores = retrieve_chunks(query, db, top_k=top_k)
 
-    # build prompt even if chunks is empty
+    # always build a prompt
     prompt = build_prompt(query, chunks)
     stream = generate_response_stream(prompt, model=model)
 

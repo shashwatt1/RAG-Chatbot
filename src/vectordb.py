@@ -13,7 +13,7 @@ class VectorDB:
         self.metadata = []
 
     def load(self):
-        # restore index + metadata from disk if available
+        # load from disk if available
         if os.path.exists(self.index_path) and os.path.exists(self.meta_path):
             self.index = faiss.read_index(self.index_path)
             with open(self.meta_path, "r", encoding="utf-8") as f:
@@ -32,7 +32,7 @@ class VectorDB:
             return
 
         if self.index is None:
-            # IndexFlatIP + normalized vecs = cosine similarity
+            # use inner product for fast search
             self.index = faiss.IndexFlatIP(self.dimension)
             self.metadata = []
 
@@ -44,7 +44,7 @@ class VectorDB:
         if self.index is None or self.index.ntotal == 0:
             return []
 
-        # scores here are cosine similarity (higher = more relevant)
+        # higher score means better match
         scores, indices = self.index.search(np.array(query_vec, dtype=np.float32), top_k)
 
         results = []

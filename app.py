@@ -12,7 +12,7 @@ load_dotenv()
 
 st.set_page_config(page_title="RAG Chatbot", layout="wide")
 
-# init db once per session
+# initialize database once per session
 if "db" not in st.session_state:
     st.session_state.db = VectorDB(dimension=get_dimension())
     st.session_state.db.load()
@@ -21,19 +21,25 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# --- sidebar ---
+# sidebar layout
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header("Settings")
     model = st.selectbox(
         "Ollama Model",
         ["llama3.2", "mistral", "phi3", "llama3"],
         index=0,
         help="Make sure you've run `ollama pull <model>` first"
     )
-    st.caption("Powered by Ollama — runs fully offline 🔒")
+    
+    st.divider()
+    st.header("Database Info")
+    chunks_count = st.session_state.db.index.ntotal if st.session_state.db.index else 0
+    st.caption(f"**Active Model:** {model}")
+    st.caption(f"**Index:** {chunks_count} chunks")
+    st.caption("**Vector Engine:** FAISS CPU")
 
     st.divider()
-    st.header("📄 Document Upload")
+    st.header("Document Upload")
     uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
 
     if uploaded_file and st.button("Process Document"):
@@ -51,7 +57,7 @@ with st.sidebar:
                 embeddings = get_embeddings(texts)
 
                 st.info("Indexing...")
-                # reset index on new upload so old data doesn't pollute results
+                # create fresh index for new documents
                 st.session_state.db = VectorDB(dimension=get_dimension())
                 st.session_state.db.build_or_update(embeddings, chunks)
 
@@ -62,18 +68,24 @@ with st.sidebar:
                 os.remove(tmp_path)
 
     st.divider()
-    if st.button("🗑️ Clear Chat"):
+    if st.button("Clear Chat"):
         st.session_state.messages = []
         st.rerun()
 
 
-# --- main chat UI ---
-st.title("📚 RAG Chatbot")
-st.markdown("Answers are grounded strictly in the uploaded document.")
+# main chat interface
+st.title("Modular RAG Chatbot")
+st.markdown("Answers are generated dynamically based strictly on the uploaded document context.")
 
+# show chat history and sources
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg.get("sources"):
+            with st.expander("📄 Show Sources"):
+                for i, s in enumerate(msg["sources"][:3]):
+                    preview = s.get("text", "")[:300].replace("\n", " ").strip() + "..."
+                    st.markdown(f"**Source {i+1}:**\n{preview}\n")
 
 
 if prompt := st.chat_input("Ask something about the document..."):
@@ -90,10 +102,15 @@ if prompt := st.chat_input("Ask something about the document..."):
             sources = []
             st.markdown(full_response)
         else:
+            # stream the response to the ui
             stream, sources = answer_query(prompt, db, top_k=8, model=model)
             full_response = st.write_stream(stream)
-
-
+            
+            if sources:
+                with st.expander("📄 Show Sources"):
+                    for i, s in enumerate(sources[:3]):
+                        preview = s.get("text", "")[:300].replace("\n", " ").strip() + "..."
+                        st.markdown(f"**Source {i+1}:**\n{preview}\n")
 
     st.session_state.messages.append({
         "role": "assistant",

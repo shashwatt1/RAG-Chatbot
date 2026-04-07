@@ -17,21 +17,21 @@ def process_document(file_path):
                 page_text = re.sub(r'(\w)-\n(\w)', r'\1\2', page_text)
                 raw_text += page_text + "\n\n"
 
-    # Replace single line breaks with spaces unless they prefix a bullet or cap
+    # clean up text formatting while keeping lists intact
     text = re.sub(r'(?<!\n)\n(?!\n)(?![A-Z0-9•\-])', ' ', raw_text)
     blocks = [b.strip() for b in re.split(r'\n\n+', text) if b.strip()]
 
-    # Extract clean sentence-level units
+    # extract standalone sentences
     sentences = []
     for b in blocks:
         b = re.sub(r'\s+', ' ', b)
-        # Sentence-aware splitting by end punctuation
+        # split by standard end punctuation
         sents = re.split(r'(?<=[.!?])\s+', b)
         for s in sents:
             if s.strip():
                 sentences.append(s.strip())
 
-    # chunking constraints
+    # chunk constraints
     target_words = 200
     overlap_words = 25
     
@@ -44,11 +44,11 @@ def process_document(file_path):
         current_chunk.append(sent)
         current_length += words
         
-        # Flush if we hit target bounds
+        # save chunk if we hit the target
         if current_length >= target_words:
             chunks.append(" ".join(current_chunk))
             
-            # Create controlled semantic overlap working backwards
+            # create text overlap to preserve context across chunks
             overlap_chunk = []
             overlap_len = 0
             for s in reversed(current_chunk):
@@ -57,14 +57,14 @@ def process_document(file_path):
                     overlap_chunk.insert(0, s)
                     overlap_len += s_words
                 else:
-                    if not overlap_chunk: # force at least 1 overlapping element
+                    if not overlap_chunk: # keep at least one sentence
                         overlap_chunk.insert(0, s)
                     break
                     
             current_chunk = overlap_chunk
             current_length = sum(len(s.split()) for s in current_chunk)
 
-    # Append any remaining trailing text not purely overlap
+    # append any leftover text
     if current_chunk and (not chunks or current_length > overlap_words * 1.5):
         chunks.append(" ".join(current_chunk))
 
